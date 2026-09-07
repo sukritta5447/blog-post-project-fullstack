@@ -2,6 +2,7 @@ import { Router } from "express";
 import connectionPool from "../utils/db.mjs";
 import protectAdmin from "../middleware/protectAdmin.mjs";
 import protectUser from "../middleware/protectUser.mjs";
+import validatePostData from "../middleware/postValidation.mjs";
 import multer from "multer";
 import { createClient } from "@supabase/supabase-js";
 
@@ -18,12 +19,12 @@ const imageFileUpload = multerUpload.fields([
   { name: "imageFile", maxCount: 1 },
 ]);
 
-postRouter.post("/", [imageFileUpload, protectAdmin], async (req, res) => {
+postRouter.post("/", [imageFileUpload, protectAdmin, validatePostData], async (req, res) => {
   // ลอจิกในการเก็บข้อมูลของโพสต์ลงในฐานข้อมูล
 
   // 1) Access ข้อมูลใน Body จาก Request ด้วย req.body
   const newPost = req.body;
-  const file = req.files.imageFile[0];
+  const file = req.files?.imageFile?.[0];
 
   // Define the Supabase Storage bucket name (replace with your bucket name)
   const bucketName = "my-personal-blog";
@@ -31,21 +32,22 @@ postRouter.post("/", [imageFileUpload, protectAdmin], async (req, res) => {
 
   // 2) เขียน Query เพื่อ Insert ข้อมูลโพสต์ ด้วย Connection Pool
   try {
-    // Upload the image to Supabase storage
-    const { data, error } = await supabase.storage
-      .from(bucketName)
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: false, // Prevent overwriting the file
-      });
+    let publicUrl = newPost.image;
+    if (file) {
+      // Upload the image to Supabase storage
+      const { data, error } = await supabase.storage
+        .from(bucketName)
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false, // Prevent overwriting the file
+        });
 
-    if (error) {
-      throw error; // If an error occurs while uploading
+      if (error) {
+        throw error; // If an error occurs while uploading
+      }
+      // Get the public URL of the uploaded file
+      publicUrl = supabase.storage.from(bucketName).getPublicUrl(data.path).data.publicUrl;
     }
-    // Get the public URL of the uploaded file
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from(bucketName).getPublicUrl(data.path);
 
     const query = `INSERT INTO posts (title, image, category_id, description, content, status_id)
       values ($1, $2, $3, $4, $5, $6)`;

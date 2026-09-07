@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { pathToFileURL } from "node:url";
 import postRouter from "./apps/postRouter.mjs";
 import categoryRouter from "./apps/categoryRouter.mjs";
 import authRouter from "./apps/auth.mjs";
@@ -21,6 +22,10 @@ app.use("/categories", categoryRouter);
 app.use("/auth", authRouter);
 app.use("/profile", profileRouter);
 
-app.listen(port, () => {
-  console.log(`Server is running at ${port}`);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  app.listen(port, () => {
+    console.log(`Server is running at ${port}`);
+  });
+}
+
+export default app;
